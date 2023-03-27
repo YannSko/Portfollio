@@ -45,7 +45,7 @@ def Popularity_Recommandation(df_complete, df_books):
 popular_df = Popularity_Recommandation(df_complete, df_books)
 
 @st.cache_data(persist=True)
-def get_collaborative_recommendations(df_complete, df_books, book_name):
+def Preprocessed_Collaborative(df_complete):
     # Users who are giving more than 200 Book-Rating
     temp_x = df_complete.groupby('User-ID').count()['Book-Rating'] > 200
     filtered_user_id = temp_x[temp_x].index
@@ -67,24 +67,27 @@ def get_collaborative_recommendations(df_complete, df_books, book_name):
     # Computing similarity scores
     similarity_scores = cosine_similarity(pt.T)
 
+    return pt, similarity_scores
+@st.cache_data(persist=True)
+def Collaborative_Recommandation(book_name):
     # index fetch
     index = np.where(pt.index == book_name)[0][0]
-    similar_items = sorted(list(enumerate(similarity_scores[index])), key=lambda x: x[1], reverse=True)[1:6]
-
+    similar_items = sorted(list(enumerate(similarity_scores[index])), key=lambda x: x[1], reverse = True)[1:6]
+    
     data = []
     for i in similar_items:
         item = []
+        #print(pt.index[i[0]])
         temp_df = df_books[df_books['Book-Title'] == pt.index[i[0]]]
         item.extend(list(temp_df.drop_duplicates('Book-Title')['Book-Title']))
         item.extend(list(temp_df.drop_duplicates('Book-Title')['Book-Author']))
         item.extend(list(temp_df.drop_duplicates('Book-Title')['Image-URL-M']))
         data.extend(item)
-
     return data
 def app():
     # Preprocess data
     df_complete = Preprocessing(df_books, df_ratings, df_users)
-    
+    pt, similarity_scores = Preprocessed_Collaborative(df_complete)
 
     # Streamlit app
     st.title('Book Recommendation System')
@@ -99,15 +102,17 @@ def app():
     # Sidebar
     st.sidebar.title('Choose a book')
     book_choice = st.sidebar.selectbox('Select a book:', df_books['Book-Title'])
-
-    # Display recommended books
     if st.button('Get Recommendations'):
-        recommended_books = get_collaborative_recommendations(df_complete, df_books, book_choice)
+        recommended_books = Collaborative_Recommandation(book_choice)
         st.write('Recommended books:')
         for book in recommended_books:
             st.write(book)
         
     # Recommendation
-    
+    st.write('Recommended books:')
+    rec_books = Collaborative_Recommandation(book_choice, pt, similarity_scores)
+    rec_df = pd.DataFrame(np.array(rec_books).reshape(-1, 3), columns=['Book Title', 'Book Author', 'Image URL'])
+    st.image(rec_df['Image URL'].values.tolist(), width=100)
+    st.write(rec_df[['Book Title', 'Book Author']])
 
 app()
